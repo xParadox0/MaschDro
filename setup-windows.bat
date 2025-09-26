@@ -73,9 +73,21 @@ cd ..
 REM ML setup
 echo 📦 Setting up ML environment...
 cd ml
-python -m venv venv
+if not exist "venv" (
+    echo Creating Python virtual environment...
+    python -m venv venv
+)
 call venv\Scripts\activate.bat
+echo Upgrading pip...
+python -m pip install --upgrade pip
+echo Installing ML dependencies (this may take a few minutes)...
 pip install -r requirements.txt
+if %errorlevel% neq 0 (
+    echo ⚠️ Some ML packages failed to install. Trying alternative approach...
+    echo Installing core packages individually...
+    pip install tensorflow scikit-learn numpy pandas psycopg2-binary sqlalchemy
+    pip install joblib scipy matplotlib seaborn tqdm python-dotenv
+)
 deactivate
 cd ..
 

@@ -26,8 +26,8 @@ echo | set /p="Backend API (8080): "
 powershell -command "& {try {$response = Invoke-WebRequest -Uri 'http://localhost:8080/health' -TimeoutSec 5; if($response.StatusCode -eq 200) {Write-Host '✅ API responding'} else {Write-Host '❌ API error'}} catch {Write-Host '❌ Not accessible'}}"
 
 REM Test Frontend
-echo | set /p="Frontend (3000): "
-powershell -command "& {try {$response = Invoke-WebRequest -Uri 'http://localhost:3000' -TimeoutSec 5; if($response.StatusCode -eq 200) {Write-Host '✅ Frontend responding'} else {Write-Host '❌ Frontend error'}} catch {Write-Host '❌ Not accessible'}}"
+echo | set /p="Frontend (5173): "
+powershell -command "& {try {$response = Invoke-WebRequest -Uri 'http://localhost:5173' -TimeoutSec 5; if($response.StatusCode -eq 200) {Write-Host '✅ Frontend responding'} else {Write-Host '❌ Frontend error'}} catch {Write-Host '❌ Not accessible'}}"
 
 echo.
 echo 📊 Database status...

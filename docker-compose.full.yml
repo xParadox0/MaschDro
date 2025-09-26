@@ -1,0 +1,135 @@
+version: '3.8'
+
+services:
+  # Infrastructure Services
+  timescaledb:
+    image: timescale/timescaledb:latest-pg14
+    container_name: sengon_timescaledb
+    environment:
+      POSTGRES_DB: sengon_monitoring
+      POSTGRES_USER: sengon_user
+      POSTGRES_PASSWORD: sengon_password
+      POSTGRES_HOST_AUTH_METHOD: trust
+    ports:
+      - "5432:5432"
+    volumes:
+      - timescale_data:/var/lib/postgresql/data
+      - ./docker/init-db:/docker-entrypoint-initdb.d
+    networks:
+      - sengon_network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sengon_user -d sengon_monitoring"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  mqtt_broker:
+    image: eclipse-mosquitto:latest
+    container_name: sengon_mqtt
+    ports:
+      - "1883:1883"
+      - "9001:9001"
+    volumes:
+      - ./docker/mosquitto/config:/mosquitto/config
+      - ./docker/mosquitto/data:/mosquitto/data
+      - ./docker/mosquitto/logs:/mosquitto/log
+    networks:
+      - sengon_network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "mosquitto_pub -h localhost -t test -m test"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  redis:
+    image: redis:alpine
+    container_name: sengon_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - sengon_network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # Application Services
+  backend:
+    build: ./backend
+    container_name: sengon_backend
+    environment:
+      - DATABASE_URL=postgres://sengon_user:sengon_password@timescaledb:5432/sengon_monitoring?sslmode=disable
+      - MQTT_BROKER=tcp://mqtt_broker:1883
+      - MQTT_USER=sengon_user
+      - MQTT_PASSWORD=sengon_pass
+      - REDIS_URL=redis:6379
+      - SERVER_PORT=8080
+    ports:
+      - "8080:8080"
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+      mqtt_broker:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - sengon_network
+    restart: unless-stopped
+
+  frontend:
+    build: ./frontend
+    container_name: sengon_frontend
+    ports:
+      - "3000:80"  # Map container port 80 to host port 3000
+    depends_on:
+      - backend
+    networks:
+      - sengon_network
+    restart: unless-stopped
+
+  ml_pipeline:
+    build: ./ml
+    container_name: sengon_ml
+    environment:
+      - DATABASE_URL=postgres://sengon_user:sengon_password@timescaledb:5432/sengon_monitoring?sslmode=disable
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+    volumes:
+      - ./ml/models:/app/models
+      - ./ml/logs:/app/logs
+    networks:
+      - sengon_network
+    restart: unless-stopped
+
+  # Monitoring and Analytics
+  grafana:
+    image: grafana/grafana:latest
+    container_name: sengon_grafana
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=sengon_admin
+    ports:
+      - "3001:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      - timescaledb
+    networks:
+      - sengon_network
+    restart: unless-stopped
+
+volumes:
+  timescale_data:
+  redis_data:
+  grafana_data:
+
+networks:
+  sengon_network:
+    driver: bridge

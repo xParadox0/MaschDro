@@ -1,7 +1,23 @@
 {
   "permissions": {
     "allow": [
-      "Bash(git add:*)"
+      "Bash(cat:*)",
+      "Bash(grep:*)",
+      "Bash(docker:*)",
+      "Bash(go:*)",
+      "Bash(node:*)",
+      "Bash(npm install)",
+      "Bash(python:*)",
+      "Bash(test_venvScriptsactivate)",
+      "Bash(pip install:*)",
+      "Bash(netstat:*)",
+      "Bash(findstr:*)",
+      "Bash(tasklist)",
+      "Bash(taskkill:*)",
+      "Bash(powershell:*)",
+      "Bash(cd:*)",
+      "Bash(wmic:*)",
+      "Bash(curl:*)"
     ],
     "deny": [],
     "ask": []

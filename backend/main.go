@@ -21,6 +21,18 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
+// GMT-7 timezone
+var GMT7 *time.Location
+
+func init() {
+	var err error
+	GMT7, err = time.LoadLocation("Etc/GMT-7")
+	if err != nil {
+		// Fallback to fixed offset if location loading fails
+		GMT7 = time.FixedZone("GMT-7", -7*60*60)
+	}
+}
+
 // Configuration struct
 type Config struct {
 	DatabaseURL  string
@@ -117,12 +129,13 @@ func (app *App) handleSensorData(client mqtt.Client, msg mqtt.Message) {
 	var timestamp time.Time
 	if timestampStr != "" {
 		if t, err := time.Parse("2006-01-02T15:04:05", timestampStr); err == nil {
-			timestamp = t
+			// Convert to GMT-7 timezone for storage in timestamptz
+			timestamp = t.In(GMT7)
 		} else {
-			timestamp = time.Now()
+			timestamp = time.Now().In(GMT7)
 		}
 	} else {
-		timestamp = time.Now()
+		timestamp = time.Now().In(GMT7)
 	}
 
 	sensorData := SensorData{
@@ -204,7 +217,7 @@ func (app *App) handleSystemStatus(client mqtt.Client, msg mqtt.Message) {
 	mqttConnected, _ := data["mqtt_connected"].(bool)
 
 	systemStatus := SystemStatus{
-		Time:          time.Now(),
+		Time:          time.Now().In(GMT7),
 		DeviceID:      deviceID,
 		Status:        status,
 		Message:       message,
@@ -234,7 +247,7 @@ func (app *App) handleAlert(client mqtt.Client, msg mqtt.Message) {
 	message, _ := data["message"].(string)
 
 	alert := Alert{
-		Time:      time.Now(),
+		Time:      time.Now().In(GMT7),
 		DeviceID:  deviceID,
 		AlertType: alertType,
 		Severity:  severity,
@@ -466,7 +479,7 @@ func (app *App) setupRoutes() *gin.Engine {
 
 	// CORS middleware
 	r.Use(cors.New(cors.Config{
-		AllowOrigins:     []string{"http://localhost:3000", "http://localhost:5173"},
+		AllowOrigins:     []string{"http://localhost:5173", "http://localhost:3000"},
 		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 		AllowHeaders:     []string{"Origin", "Content-Type", "Accept", "Authorization"},
 		ExposeHeaders:    []string{"Content-Length"},
@@ -478,7 +491,7 @@ func (app *App) setupRoutes() *gin.Engine {
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
 			"status":         "healthy",
-			"timestamp":      time.Now(),
+			"timestamp":      time.Now().In(GMT7),
 			"mqtt_connected": app.MQTTClient.IsConnected(),
 		})
 	})
@@ -497,15 +510,23 @@ func (app *App) setupRoutes() *gin.Engine {
 	return r
 }
 
+// Helper function to get environment variables with default values
+func getEnv(key, defaultValue string) string {
+	if value := os.Getenv(key); value != "" {
+		return value
+	}
+	return defaultValue
+}
+
 func main() {
-	// Load configuration
+	// Load configuration from environment variables with defaults
 	config := Config{
-		DatabaseURL:  "postgres://sengon_user:sengon_password@localhost:5432/sengon_monitoring?sslmode=disable",
-		MQTTBroker:   "tcp://localhost:1883",
-		MQTTUser:     "sengon_user",
-		MQTTPassword: "sengon_pass",
-		RedisURL:     "localhost:6379",
-		ServerPort:   "8080",
+		DatabaseURL:  getEnv("DATABASE_URL", "postgres://sengon_user:sengon_password@localhost:5432/sengon_monitoring?sslmode=disable"),
+		MQTTBroker:   getEnv("MQTT_BROKER", "tcp://localhost:1883"),
+		MQTTUser:     getEnv("MQTT_USER", "sengon_user"),
+		MQTTPassword: getEnv("MQTT_PASSWORD", "sengon_pass"),
+		RedisURL:     getEnv("REDIS_URL", "localhost:6379"),
+		ServerPort:   getEnv("SERVER_PORT", "8080"),
 	}
 
 	// Initialize database
@@ -514,6 +535,14 @@ func main() {
 		log.Fatal("Failed to connect to database:", err)
 	}
 	defer db.Close()
+
+	// Set database session timezone to GMT-7
+	_, err = db.Exec("SET timezone = 'Etc/GMT-7'")
+	if err != nil {
+		log.Printf("Warning: Failed to set database timezone: %v", err)
+	} else {
+		log.Println("Database timezone set to GMT-7")
+	}
 
 	// Initialize Redis
 	rdb := redis.NewClient(&redis.Options{

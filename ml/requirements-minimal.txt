@@ -1,0 +1,20 @@
+# Minimal ML requirements for basic functionality
+# Use this if requirements.txt fails
+
+# Essential ML Libraries
+tensorflow
+scikit-learn
+numpy
+pandas
+
+# Database
+psycopg2-binary
+sqlalchemy
+
+# Utilities
+joblib
+python-dotenv
+
+# Optional but recommended
+matplotlib
+scipy

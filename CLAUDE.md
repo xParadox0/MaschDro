@@ -2,165 +2,128 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## System Overview
+## Project Overview
 
-MaschDro is a Smart Dendrometer IoT system for forest monitoring that combines ESP32 hardware, Go backend, React frontend, Python ML pipeline, and supporting infrastructure. The system monitors tree growth through dendrometer sensors and provides AI-powered growth predictions and health classifications.
+Sengon Monitoring System is an AIoT-based forest monitoring solution that combines IoT sensors, machine learning, and web dashboard for real-time tree growth monitoring and carbon footprint calculation. The system tracks Sengon tree growth using dendrometer sensors and environmental monitoring.
 
 ## Architecture
 
-The system consists of 5 main components:
+This is a multi-component system with:
 
-### 1. ESP32 Firmware (`esp32/sengon_monitoring/`)
-- Arduino-based firmware for ESP32 microcontrollers
-- Collects dendrometer sensor data and environmental metrics
-- Communicates via MQTT to the backend
-- Main file: `sengon_monitoring.ino`
-
-### 2. Go Backend (`backend/`)
-- REST API server using Gin framework
-- MQTT broker integration for IoT data collection
-- PostgreSQL (TimescaleDB) for time-series data storage
-- Redis for caching and real-time data
-- WebSocket support for live dashboard updates
-- Main file: `main.go`
-- Dependencies managed via `go.mod`
-
-### 3. React Frontend (`frontend/`)
-- Vite-powered React dashboard with TypeScript support
-- Real-time visualization using Recharts
-- Tailwind CSS for styling
-- Lucide React for icons
-- Development server runs on port 3000
-- Build system: Vite, linting: ESLint
-
-### 4. Python ML Pipeline (`ml/`)
-- TensorFlow LSTM models for growth prediction
-- Random Forest for tree health classification
-- Scikit-learn for preprocessing and evaluation
-- Direct PostgreSQL integration for training data
-- Model persistence with joblib
-- Main file: `ml_pipeline.py`
-
-### 5. Infrastructure (Docker Compose)
-- TimescaleDB (PostgreSQL extension) for time-series data
-- Eclipse Mosquitto MQTT broker
-- Redis for caching
-- Grafana for advanced analytics (port 3001)
+- **Frontend**: React + Vite dashboard with TailwindCSS for data visualization
+- **Backend**: Go REST API server with MQTT integration for sensor data collection
+- **ML Pipeline**: Python-based machine learning for growth predictions and carbon calculations
+- **ESP32 Firmware**: IoT sensors for dendrometer and environmental data collection
+- **Database**: PostgreSQL for persistent storage, Redis for caching
+- **Message Broker**: MQTT for real-time sensor data communication
 
 ## Development Commands
 
-### Full System Setup
+### Setup (Windows)
 ```bash
-# Windows setup (installs all dependencies)
-setup-windows.bat
-
-# Start all Docker services
-run-windows.bat
-
-# Stop Docker services
-stop-windows.bat
-
-# Validate system prerequisites
-validate-system-windows.bat
+setup-windows.bat  # Initial project setup and dependency installation
 ```
 
-### Backend Development
+### Running the System
 ```bash
-cd backend
-
-# Install dependencies
-go mod tidy
-
-# Run development server
-go run main.go
-
-# Server runs on http://localhost:8080
+run-windows.bat    # Start all services (frontend, backend, database, MQTT)
+stop-windows.bat   # Stop all services
 ```
 
 ### Frontend Development
 ```bash
-cd frontend
+cd frontend/
+npm run dev        # Start development server (http://localhost:5173)
+npm run build      # Build for production
+npm run preview    # Preview production build
+npm run lint       # Run ESLint
+```
 
-# Install dependencies
-npm install
-
-# Start development server
-npm run dev
-
-# Build for production
-npm run build
-
-# Preview production build
-npm run preview
-
-# Lint code
-npm run lint
+### Backend Development
+```bash
+cd backend/
+go run main.go     # Start Go server (http://localhost:8080)
+go mod tidy        # Update dependencies
 ```
 
 ### ML Pipeline
 ```bash
-cd ml
-
-# Create Python virtual environment
-python -m venv venv
-
-# Activate virtual environment (Windows)
-venv\Scripts\activate.bat
-
-# Install dependencies
-pip install -r requirements.txt
-
-# Run ML pipeline
-python ml_pipeline.py
+cd ml/
+# Activate virtual environment first
+venv\Scripts\activate.bat  # Windows
+source venv/bin/activate   # Linux/Mac
+python ml_pipeline.py      # Run ML pipeline
+pip install -r requirements.txt  # Install Python dependencies
 ```
-
-### ESP32 Development
-- Use Arduino IDE or PlatformIO
-- Configure WiFi credentials in the firmware
-- Upload to ESP32 device via USB
-- Main file: `esp32/sengon_monitoring/sengon_monitoring.ino`
 
 ## Database Schema
 
-The system uses TimescaleDB with the following key tables:
-- `devices` - Device registration and metadata
-- `sensor_data` - Time-series sensor readings (hypertable)
-- `device_status` - Real-time device health monitoring
-- `growth_predictions` - ML model outputs
-- `alerts` - System notifications and warnings
+Key database models (see backend/main.go:35-93):
+- `devices`: IoT device registration and metadata
+- `sensor_data`: Dendrometer readings, environmental data, system metrics
+- `system_status`: Device health and connectivity status
+- `alerts`: System alerts and notifications
+- `carbon_metrics`: Calculated carbon stock and credits
+
+## API Endpoints
+
+REST API available at `http://localhost:8080/api/v1/`:
+- `GET /devices` - List all registered devices
+- `GET /devices/{id}/latest` - Latest sensor reading for device
+- `GET /devices/{id}/history?hours=24` - Historical sensor data
+- `GET /devices/{id}/carbon` - Carbon metrics for device
+- `GET /alerts?device_id=x&acknowledged=false` - System alerts
+- `PUT /alerts/{id}/acknowledge` - Acknowledge alert
+
+## MQTT Topics
+
+The system uses MQTT for real-time communication:
+- `sengon/sensor/data` - Sensor readings from ESP32 devices
+- `sengon/system/status` - Device health and connectivity status
+- `sengon/alerts` - System alerts and notifications
 
 ## Configuration
 
-Environment variables are defined in `.env`:
-- Database: PostgreSQL connection on port 5432
-- MQTT: Broker on port 1883
-- API: Backend on port 8080, Frontend on port 3000
-- Grafana: Dashboard on port 3001
+- Database: PostgreSQL on localhost:5432 (credentials in backend/main.go:503)
+- MQTT Broker: localhost:1883 (credentials in backend/main.go:505-506)
+- Redis: localhost:6379
+- Backend server: localhost:8080
+- Frontend dev server: localhost:5173
 
-## Key Integrations
+## Key Dependencies
 
-### MQTT Topics Structure
-- `sengon/+/sensor_data` - Sensor readings from devices
-- `sengon/+/status` - Device health and connectivity
-- `sengon/+/alerts` - Critical notifications
+**Frontend:**
+- React 18 with Vite build tool
+- Recharts for data visualization
+- Lucide React for icons
+- Axios for HTTP requests
+- TailwindCSS for styling
 
-### API Endpoints
-The Go backend provides REST endpoints for:
-- Device management (`/api/devices`)
-- Sensor data queries (`/api/sensor-data`)
-- Real-time WebSocket (`/api/ws`)
-- ML predictions (`/api/predictions`)
+**Backend:**
+- Gin web framework
+- Paho MQTT client for IoT communication
+- SQLx for database operations (PostgreSQL)
+- Go-Redis for caching
 
-### Machine Learning Features
-- **Growth Prediction**: LSTM neural network using 72-hour sliding windows
-- **Health Classification**: Random Forest classifier for tree health status
-- **Anomaly Detection**: Isolation Forest for outlier identification
-- **Model Retraining**: Scheduled pipeline for continuous learning
+**ML:**
+- Python-based pipeline in `ml/` directory
+- Models stored in `ml/models/`
+- Virtual environment in `ml/venv/`
 
-## Development Notes
+## ESP32 Firmware
 
-- The system is Windows-optimized with `.bat` scripts for setup and management
-- TimescaleDB is used for efficient time-series data handling
-- Real-time updates flow: ESP32 → MQTT → Go Backend → WebSocket → React Frontend
-- ML models are retrained periodically using historical sensor data
-- Grafana provides advanced visualization and alerting capabilities
+ESP32 code located in `esp32/sengon_monitoring/` directory. The firmware handles:
+- Dendrometer sensor readings
+- Environmental sensors (temperature, humidity, soil moisture)
+- WiFi and MQTT connectivity
+- Power management (battery + solar)
+
+## Docker Services
+
+The system can be orchestrated using docker-compose.yml which includes:
+- PostgreSQL database
+- Redis cache
+- MQTT broker
+- Application services
+
+Use `docker-compose up -d` to start all infrastructure services.
