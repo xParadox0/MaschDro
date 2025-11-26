@@ -2,8 +2,22 @@ import React, { useState, useEffect } from 'react';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { AlertTriangle, Activity, TreePine, TrendingUp, Battery, Wifi, Thermometer, Droplets, DollarSign, Clock, CheckCircle, XCircle, AlertCircle, Brain, BarChart3, Target, Zap, Home, Monitor, Settings, Bell } from 'lucide-react';
 
-// API Configuration
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api/v1';
+// API Configuration - Dynamically determine the backend URL
+// If running in Docker, use relative path which nginx will proxy
+// If running locally with separate backend, use localhost:8083
+const getAPIBaseURL = () => {
+  // Check if we're in a Docker container (nginx is serving on same host)
+  if (window.location.hostname === '192.168.18.176' ||
+      window.location.hostname === '192.168.18.12' ||
+      window.location.hostname !== 'localhost') {
+    // Using IP address - use relative path for nginx proxy
+    return '/api/v1';
+  }
+  // Using localhost - use full URL to backend
+  return import.meta.env.VITE_API_BASE_URL || 'http://localhost:8083/api/v1';
+};
+
+const API_BASE_URL = getAPIBaseURL();
 
 // Utility function for API calls
 const apiCall = async (endpoint) => {

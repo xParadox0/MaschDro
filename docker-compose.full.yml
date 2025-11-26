@@ -11,7 +11,7 @@ services:
       POSTGRES_PASSWORD: sengon_password
       POSTGRES_HOST_AUTH_METHOD: trust
     ports:
-      - "5432:5432"
+      - "5434:5432"
     volumes:
       - timescale_data:/var/lib/postgresql/data
       - ./docker/init-db:/docker-entrypoint-initdb.d
@@ -28,7 +28,7 @@ services:
     image: eclipse-mosquitto:latest
     container_name: sengon_mqtt
     ports:
-      - "1883:1883"
+      - "1884:1883"
       - "9001:9001"
     volumes:
       - ./docker/mosquitto/config:/mosquitto/config
@@ -47,7 +47,7 @@ services:
     image: redis:alpine
     container_name: sengon_redis
     ports:
-      - "6379:6379"
+      - "6378:6379"
     volumes:
       - redis_data:/data
     networks:
@@ -71,7 +71,7 @@ services:
       - REDIS_URL=redis:6379
       - SERVER_PORT=8080
     ports:
-      - "8080:8080"
+      - "8083:8080"
     depends_on:
       timescaledb:
         condition: service_healthy
@@ -87,7 +87,7 @@ services:
     build: ./frontend
     container_name: sengon_frontend
     ports:
-      - "3000:80"  # Map container port 80 to host port 3000
+      - "3001:80"  # Map container port 80 to host port 3000
     depends_on:
       - backend
     networks:
@@ -116,7 +116,7 @@ services:
     environment:
       - GF_SECURITY_ADMIN_PASSWORD=sengon_admin
     ports:
-      - "3001:3000"
+      - "3002:3000"
     volumes:
       - grafana_data:/var/lib/grafana
     depends_on:

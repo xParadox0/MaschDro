@@ -144,29 +144,35 @@ func (app *App) handleSensorData(client mqtt.Client, msg mqtt.Message) {
 		RawData:  msg.Payload(),
 	}
 
-	// Extract sensor readings
-	if sensors, ok := data["sensors"].(map[string]interface{}); ok {
-		// Dendrometer data
-		if dendrometer, ok := sensors["dendrometer"].(map[string]interface{}); ok {
-			if diameter, ok := dendrometer["diameter_mm"].(float64); ok {
-				sensorData.DiameterMm = &diameter
-			}
-			if growthRate, ok := dendrometer["growth_rate_mm_per_hour"].(float64); ok {
-				sensorData.GrowthRateMmPerHour = &growthRate
-			}
-		}
+	// Extract location from payload
+	location, _ := data["location"].(string)
 
-		// Environmental data
-		if environment, ok := sensors["environment"].(map[string]interface{}); ok {
-			if temp, ok := environment["temperature_c"].(float64); ok {
-				sensorData.TemperatureC = &temp
-			}
-			if humidity, ok := environment["humidity_percent"].(float64); ok {
-				sensorData.HumidityPercent = &humidity
-			}
-			if soilMoisture, ok := environment["soil_moisture_percent"].(float64); ok {
-				sensorData.SoilMoisturePercent = &soilMoisture
-			}
+	// Auto-register device if it doesn't exist
+	if err := app.registerDeviceIfNotExists(deviceID, location); err != nil {
+		log.Printf("Warning: Failed to register device: %v", err)
+	}
+
+	// Extract dendrometer data
+	if dendrometer, ok := data["dendrometer"].(map[string]interface{}); ok {
+		if diameter, ok := dendrometer["diameter_mm"].(float64); ok {
+			sensorData.DiameterMm = &diameter
+		}
+		if growthRate, ok := dendrometer["growth_rate"].(float64); ok {
+			// Convert growth rate to mm/hour if needed
+			sensorData.GrowthRateMmPerHour = &growthRate
+		}
+	}
+
+	// Extract environmental data
+	if environment, ok := data["environment"].(map[string]interface{}); ok {
+		if temp, ok := environment["temperature"].(float64); ok {
+			sensorData.TemperatureC = &temp
+		}
+		if humidity, ok := environment["humidity"].(float64); ok {
+			sensorData.HumidityPercent = &humidity
+		}
+		if soilMoisture, ok := environment["soil_moisture"].(float64); ok {
+			sensorData.SoilMoisturePercent = &soilMoisture
 		}
 	}
 
@@ -178,7 +184,7 @@ func (app *App) handleSensorData(client mqtt.Client, msg mqtt.Message) {
 		if solar, ok := system["solar_voltage"].(float64); ok {
 			sensorData.SolarVoltage = &solar
 		}
-		if rssi, ok := system["wifi_rssi"].(float64); ok {
+		if rssi, ok := system["rssi"].(float64); ok {
 			rssiInt := int(rssi)
 			sensorData.WifiRssi = &rssiInt
 		}
@@ -260,6 +266,42 @@ func (app *App) handleAlert(client mqtt.Client, msg mqtt.Message) {
 	}
 }
 
+// Device registration function
+func (app *App) registerDeviceIfNotExists(deviceID, location string) error {
+	if deviceID == "" {
+		return fmt.Errorf("device_id cannot be empty")
+	}
+
+	// Check if device already exists
+	var existingID string
+	err := app.DB.Get(&existingID, "SELECT device_id FROM devices WHERE device_id = $1", deviceID)
+	if err == nil {
+		// Device already exists
+		log.Printf("Device %s already registered", deviceID)
+		return nil
+	}
+
+	// Device doesn't exist, create it with sensible defaults
+	deviceName := fmt.Sprintf("Device %s", deviceID)
+	treeSpecies := "Unknown"
+	metadata := `{"registration_method": "auto", "source": "mqtt"}`
+
+	query := `
+		INSERT INTO devices (device_id, device_name, location, tree_species, installation_date, status, metadata)
+		VALUES ($1, $2, $3, $4, NOW(), 'active', $5)
+		ON CONFLICT (device_id) DO NOTHING
+	`
+
+	_, err = app.DB.Exec(query, deviceID, deviceName, location, treeSpecies, metadata)
+	if err != nil {
+		log.Printf("Error registering device: %v", err)
+		return err
+	}
+
+	log.Printf("Device %s registered successfully", deviceID)
+	return nil
+}
+
 // Database operations
 func (app *App) insertSensorData(data SensorData) error {
 	query := `
@@ -321,6 +363,58 @@ func (app *App) getDevices(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"devices": devices})
+}
+
+func (app *App) registerDevice(c *gin.Context) {
+	var req struct {
+		DeviceID   string `json:"device_id" binding:"required"`
+		DeviceName string `json:"device_name"`
+		Location   string `json:"location"`
+		TreeSpecies string `json:"tree_species"`
+		Metadata   interface{} `json:"metadata"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Set defaults if not provided
+	if req.DeviceName == "" {
+		req.DeviceName = fmt.Sprintf("Device %s", req.DeviceID)
+	}
+	if req.TreeSpecies == "" {
+		req.TreeSpecies = "Unknown"
+	}
+
+	// Convert metadata to JSON string
+	var metadataJSON []byte = []byte("{}")
+	if req.Metadata != nil {
+		if b, err := json.Marshal(req.Metadata); err == nil {
+			metadataJSON = b
+		}
+	}
+
+	// Insert device
+	query := `
+		INSERT INTO devices (device_id, device_name, location, tree_species, installation_date, status, metadata)
+		VALUES ($1, $2, $3, $4, NOW(), 'active', $5)
+		ON CONFLICT (device_id) DO UPDATE
+		SET device_name = EXCLUDED.device_name, location = EXCLUDED.location, tree_species = EXCLUDED.tree_species
+		RETURNING device_id, device_name, location, tree_species, installation_date, status, metadata
+	`
+
+	var device Device
+	err := app.DB.Get(&device, query, req.DeviceID, req.DeviceName, req.Location, req.TreeSpecies, metadataJSON)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusCreated, gin.H{
+		"message": "Device registered successfully",
+		"device":  device,
+	})
 }
 
 func (app *App) getLatestReadings(c *gin.Context) {
@@ -479,7 +573,17 @@ func (app *App) setupRoutes() *gin.Engine {
 
 	// CORS middleware
 	r.Use(cors.New(cors.Config{
-		AllowOrigins:     []string{"http://localhost:5173", "http://localhost:3000"},
+		AllowOrigins: []string{
+			// Localhost (development)
+			"http://localhost:5173",
+			"http://localhost:3000",
+			"http://localhost:3001",
+			// Local network IP addresses
+			"http://192.168.18.176:3001",  // Ethernet IP
+			"http://192.168.18.12:3001",   // WiFi IP
+			"http://192.168.18.176:5173",  // Vite dev
+			"http://192.168.18.12:5173",   // Vite dev
+		},
 		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 		AllowHeaders:     []string{"Origin", "Content-Type", "Accept", "Authorization"},
 		ExposeHeaders:    []string{"Content-Length"},
@@ -500,6 +604,7 @@ func (app *App) setupRoutes() *gin.Engine {
 	api := r.Group("/api/v1")
 	{
 		api.GET("/devices", app.getDevices)
+		api.POST("/devices", app.registerDevice)
 		api.GET("/devices/:device_id/latest", app.getLatestReadings)
 		api.GET("/devices/:device_id/history", app.getSensorHistory)
 		api.GET("/devices/:device_id/carbon", app.getCarbonMetrics)
