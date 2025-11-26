@@ -21,15 +21,15 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-// GMT-7 timezone
+// GMT+7 timezone (Asia/Bangkok)
 var GMT7 *time.Location
 
 func init() {
 	var err error
-	GMT7, err = time.LoadLocation("Etc/GMT-7")
+	GMT7, err = time.LoadLocation("Asia/Bangkok")
 	if err != nil {
 		// Fallback to fixed offset if location loading fails
-		GMT7 = time.FixedZone("GMT-7", -7*60*60)
+		GMT7 = time.FixedZone("GMT+7", 7*60*60)
 	}
 }
 

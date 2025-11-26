@@ -14,15 +14,15 @@ const char* password = "!0MeinStadt0!";
 // =========================
 // MQTT Configuration
 // =========================
-// const char* mqtt_server = "178.128.107.238";
-// const int mqtt_port = 1883;
-// const char* mqtt_user = "mqtt_pass";
-// const char* mqtt_password = "thesismania";
-
-const char* mqtt_server = "192.168.18.176";
+const char* mqtt_server = "103.250.11.110";
 const int mqtt_port = 1884;
 const char* mqtt_user = "sengon_user";
 const char* mqtt_password = "sengon_pass";
+
+// const char* mqtt_server = "192.168.18.176";
+// const int mqtt_port = 1884;
+// const char* mqtt_user = "sengon_user";
+// const char* mqtt_password = "sengon_pass";
 
 const char* mqtt_topic_data = "sengon/sensor/data";
 const char* mqtt_topic_status = "sengon/system/status";
